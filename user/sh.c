@@ -145,8 +145,8 @@ getcmd(char *buf, int nbuf)
 int
 main(void)
 {
-  static char buf[100];
-  int fd;
+  static char buf[100]; // initialize the buffer that will hold user input
+  int fd; // init file descriptor varibale
 
   // Ensure that three file descriptors are open.
   while ((fd = open("console", O_RDWR)) >= 0) {
@@ -157,21 +157,20 @@ main(void)
   }
 
   // Read and run input commands.
-  while (getcmd(buf, sizeof(buf)) >= 0) {
-    char *cmd = buf;
-    while (*cmd == ' ' || *cmd == '\t')
-      cmd++;
-    if (*cmd == '\n') // is a blank command
-      continue;
-    if (cmd[0] == 'c' && cmd[1] == 'd' && cmd[2] == ' ') {
+  while (getcmd(buf, sizeof(buf)) >= 0) { // set all values of the buffer to zero before reading it as a means of initialization so we dont read garbage
+    char *cmd = buf; // init anohter pointer to whatever the user typed that was read with gets().... this pointer is so we dont lose the pointer to the start of the input
+    while (*cmd == ' ' || *cmd == '\t') cmd++; // if we encounter blank or some tabs then just keep incrementing the pointer to the input string 
+    
+    if (*cmd == '\n') continue; // what the user inputted is a blank command
+      
+    if (cmd[0] == 'c' && cmd[1] == 'd' && cmd[2] == ' ') { // if we entered cd commadn
       // Chdir must be called by the parent, not the child.
-      cmd[strlen(cmd) - 1] = 0; // chop \n
-      if (chdir(cmd + 3) < 0)
-        fprintf(2, "cannot cd %s\n", cmd + 3);
+      cmd[strlen(cmd) - 1] = 0; // chop \n and put the null terminator there in place of it
+      if (chdir(cmd + 3) < 0) // chnge the current directory 
+        fprintf(2, "cannot cd %s\n", cmd + 3); // send output to fd 2 if it failts
     } else {
-      if (fork1() == 0)
-        runcmd(parsecmd(cmd));
-      wait(0);
+      if (fork1() == 0) runcmd(parsecmd(cmd)); // this fo the child.... so we run the command that cmd points to using the exec syscall
+      wait(0); // wait for the syscall to finish and then clear the buffer (in the whlie loop condition) and get ready for the next command
     }
   }
   exit(0);
