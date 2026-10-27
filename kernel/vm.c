@@ -75,12 +75,12 @@ void
 kvminithart()
 {
   // wait for any previous writes to the page table memory to finish.
-  sfence_vma();
+  sfence_vma(); // this also ensures that old writes and reads will use the old pagetable as opposed to the new one that is changes in the line afterward... old shi must stay old... 
 
   w_satp(MAKE_SATP(kernel_pagetable));
 
   // flush stale entries from the TLB.
-  sfence_vma();
+  sfence_vma(); // this function stops tlb entries from being stale and using previous invalid garbage memory from a previous kernel state
 }
 
 // Return the address of the PTE in page table pagetable
@@ -96,12 +96,12 @@ kvminithart()
 //   12..20 -- 9 bits of level-0 index.
 //    0..11 -- 12 bits of byte offset within the page.
 pte_t *
-walk(pagetable_t pagetable, uint64 va, int alloc)
+walk(pagetable_t pagetable, uint64 va, int alloc) // will walk through pagetables via virtaul address until it reaches a pte.. if the pte doesn't exist then we will create it !
 {
   if (va >= MAXVA)
     panic("walk");
 
-  for (int level = 2; level > 0; level--) {
+  for (int level = 2; level > 0; level--) { 
     pte_t *pte = &pagetable[PX(level, va)];
     if (*pte & PTE_V) {
       pagetable = (pagetable_t)PTE2PA(*pte);
@@ -159,14 +159,15 @@ mappages(pagetable_t pagetable, uint64 va, uint64 size, uint64 pa, int perm)
     panic("mappages: size");
 
   a = va;
-  last = va + size - PGSIZE;
-  for (;;) {
-    if ((pte = walk(pagetable, a, 1)) == 0)
+  last = va + size - PGSIZE; // have to consider these bounds becuase we're mapping UP TO a page...
+  // the interval we're mapping to is [va, va + size) 
+  for (;;) { // a while loop here also works... but using for(;;) is kinda fye
+    if ((pte = walk(pagetable, a, 1)) == 0) // sets pte here and makes sure that there's no error... there would be if we couldn't allocate pte memory with kalloc.. idk maybe there are no more pages left in the linked list lol
       return -1;
-    if (*pte & PTE_V)
+    if (*pte & PTE_V) // if the pte that we found via walk has it's valid bit set then it's a pte that's already mapped... we would be remapping which #wouldn'tbesafe
       panic("mappages: remap");
-    *pte = PA2PTE(pa) | perm | PTE_V;
-    if (a == last)
+    *pte = PA2PTE(pa) | perm | PTE_V; // whatveer perms we defined in the initialization of the shi and ensure that our shi is valid
+    if (a == last) // once we get to the last shi we will break because we will have allocated our last page and we will have allocated 'size' memory... size is page aligned
       break;
     a += PGSIZE;
     pa += PGSIZE;
